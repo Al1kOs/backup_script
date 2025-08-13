@@ -1,0 +1,60 @@
+# Минимальные исключения для бэкапа Linux системы
+# Этот файл содержит только самые необходимые исключения
+
+# Временные файлы и кэш
+/tmp/*
+/var/tmp/*
+/var/cache/*
+/var/log/*
+/run/*
+/var/run/*
+
+# Виртуальные файловые системы
+/proc/*
+/sys/*
+/dev/*
+/mnt/*
+/media/*
+
+# Специальные директории
+/lost+found
+/.Trash-*
+/.cache
+/.local/share/Trash
+
+# Временные файлы приложений
+*.swp
+*.tmp
+*.temp
+*.log
+*.pid
+*.lock
+
+# Системные файлы, которые не нужно бэкапить
+/var/lib/dhcp/
+/var/lib/dbus/machine-id
+/etc/machine-id
+
+# Файлы блокировки
+/var/lock/*
+/var/lib/lockdown/*
+
+# Кэш браузеров (если есть)
+/root/.cache/*
+/home/*/.cache/*
+/home/*/.mozilla/firefox/*/Cache*
+/home/*/.cache/google-chrome/*
+/home/*/.cache/opera/*
+
+# Временные файлы загрузок
+/var/cache/apt/archives/*
+/var/cache/yum/*
+/var/cache/dnf/*
+
+# Логи системы
+/var/log/*
+/var/log/journal/*
+
+# Файлы подкачки
+*.swap
+swapfile 

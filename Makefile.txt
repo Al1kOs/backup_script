@@ -1,0 +1,257 @@
+# Makefile для системы бэкапа Linux
+# Предоставляет удобные команды для установки, удаления и управления
+
+.PHONY: help install uninstall clean test check backup restore incremental network-config system-check backup-automation install-user install-system install-dev uninstall-force
+
+# Переменные
+PREFIX ?= /usr/local
+CONFIG_DIR ?= /etc/backup-system
+LOG_DIR ?= /var/log/backup-system
+USER ?= $(shell whoami)
+
+# Цвета для вывода
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[1;33m
+BLUE := \033[0;34m
+NC := \033[0m # No Color
+
+# Список всех скриптов
+SCRIPTS := backup_system.sh restore_system.sh incremental_backup.sh network_config.sh system_check.sh backup_automation.sh
+
+# Список конфигурационных файлов
+CONFIGS := backup_excludes.txt restore.conf.example README.md
+
+# Список символических ссылок
+SYMLINKS := backup-system restore-system incremental-backup network-config system-check backup-automation
+
+help: ## Показать справку по командам
+	@echo "$(BLUE)Система бэкапа Linux - Доступные команды:$(NC)"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(YELLOW)Примеры использования:$(NC)"
+	@echo "  make install          # Установка в пользовательскую директорию"
+	@echo "  make install-system   # Установка в системную директорию (требует root)"
+	@echo "  make backup           # Создание бэкапа (требует настройки)"
+	@echo "  make check            # Проверка системы"
+	@echo "  make clean            # Очистка временных файлов"
+
+install: ## Установка в пользовательскую директорию
+	@echo "$(GREEN)Установка системы бэкапа в пользовательскую директорию...$(NC)"
+	@mkdir -p $(HOME)/.local/bin
+	@mkdir -p $(HOME)/.config/backup-system
+	@mkdir -p $(HOME)/.local/share/backup-system/logs
+	@for script in $(SCRIPTS); do \
+		if [ -f $$script ]; then \
+			cp $$script $(HOME)/.local/bin/; \
+			chmod +x $(HOME)/.local/bin/$$script; \
+			echo "  Установлен: $$script"; \
+		else \
+			echo "$(RED)  Ошибка: $$script не найден$(NC)"; \
+		fi \
+	done
+	@for config in $(CONFIGS); do \
+		if [ -f $$config ]; then \
+			cp $$config $(HOME)/.config/backup-system/; \
+			echo "  Установлен: $$config"; \
+		fi \
+	done
+	@for script in $(SCRIPTS); do \
+		if [ -f $(HOME)/.local/bin/$$script ]; then \
+			script_name=$${script%.sh}; \
+			ln -sf $(HOME)/.local/bin/$$script $(HOME)/.local/bin/$$script_name; \
+			echo "  Создана ссылка: $$script_name"; \
+		fi \
+	done
+	@echo "$(GREEN)Установка завершена!$(NC)"
+	@echo "Добавьте $(HOME)/.local/bin в PATH для использования команд"
+
+install-system: ## Установка в системную директорию (требует root)
+	@echo "$(YELLOW)Установка системы бэкапа в системную директорию...$(NC)"
+	@if [ "$$(id -u)" -ne 0 ]; then \
+		echo "$(RED)Ошибка: Эта команда требует прав root$(NC)"; \
+		echo "Используйте: sudo make install-system"; \
+		exit 1; \
+	fi
+	@./install.sh
+	@echo "$(GREEN)Системная установка завершена!$(NC)"
+
+install-user: ## Установка для конкретного пользователя
+	@echo "$(GREEN)Установка системы бэкапа для пользователя $(USER)...$(NC)"
+	@mkdir -p $(HOME)/bin
+	@mkdir -p $(HOME)/.backup-system
+	@mkdir -p $(HOME)/.backup-system/logs
+	@for script in $(SCRIPTS); do \
+		if [ -f $$script ]; then \
+			cp $$script $(HOME)/bin/; \
+			chmod +x $(HOME)/bin/$$script; \
+			echo "  Установлен: $$script"; \
+		fi \
+	done
+	@for config in $(CONFIGS); do \
+		if [ -f $$config ]; then \
+			cp $$config $(HOME)/.backup-system/; \
+			echo "  Установлен: $$config"; \
+		fi \
+	done
+	@echo "$(GREEN)Установка для пользователя завершена!$(NC)"
+	@echo "Добавьте $(HOME)/bin в PATH для использования команд"
+
+uninstall: ## Удаление системы бэкапа
+	@echo "$(YELLOW)Удаление системы бэкапа...$(NC)"
+	@if [ -f ./uninstall.sh ]; then \
+		./uninstall.sh; \
+	else \
+		echo "$(RED)Скрипт удаления не найден$(NC)"; \
+		echo "Удалите файлы вручную:"; \
+		echo "  rm -rf $(HOME)/.local/bin/backup-*"; \
+		echo "  rm -rf $(HOME)/.config/backup-system"; \
+		echo "  rm -rf $(HOME)/.backup-system"; \
+	fi
+
+uninstall-force: ## Принудительное удаление без подтверждения
+	@echo "$(RED)Принудительное удаление системы бэкапа...$(NC)"
+	@if [ -f ./uninstall.sh ]; then \
+		./uninstall.sh -f; \
+	else \
+		echo "$(RED)Скрипт удаления не найден$(NC)"; \
+	fi
+
+clean: ## Очистка временных файлов
+	@echo "$(BLUE)Очистка временных файлов...$(NC)"
+	@rm -f /tmp/backup-*
+	@rm -f /tmp/backup-cron*
+	@rm -f *.tmp
+	@rm -f *.log
+	@echo "$(GREEN)Очистка завершена$(NC)"
+
+test: ## Тестирование скриптов
+	@echo "$(BLUE)Тестирование скриптов...$(NC)"
+	@for script in $(SCRIPTS); do \
+		if [ -f $$script ]; then \
+			echo "  Тестирование $$script..."; \
+			bash -n $$script && echo "    ✓ Синтаксис корректен" || echo "    ✗ Ошибка синтаксиса"; \
+		fi \
+	done
+
+check: ## Проверка системы (требует настройки)
+	@echo "$(BLUE)Проверка системы...$(NC)"
+	@if [ -f ./system_check.sh ]; then \
+		echo "Используйте: ./system_check.sh -h HOSTNAME"; \
+	else \
+		echo "$(RED)Скрипт проверки не найден$(NC)"; \
+	fi
+
+backup: ## Создание бэкапа (требует настройки)
+	@echo "$(BLUE)Создание бэкапа...$(NC)"
+	@if [ -f ./backup_system.sh ]; then \
+		echo "Используйте: ./backup_system.sh -h HOSTNAME"; \
+	else \
+		echo "$(RED)Скрипт бэкапа не найден$(NC)"; \
+	fi
+
+restore: ## Восстановление системы (требует настройки)
+	@echo "$(BLUE)Восстановление системы...$(NC)"
+	@if [ -f ./restore_system.sh ]; then \
+		echo "Используйте: ./restore_system.sh -b BACKUP_FILE -t HOSTNAME -d DEVICE"; \
+	else \
+		echo "$(RED)Скрипт восстановления не найден$(NC)"; \
+	fi
+
+incremental: ## Инкрементные бэкапы (требует настройки)
+	@echo "$(BLUE)Инкрементные бэкапы...$(NC)"
+	@if [ -f ./incremental_backup.sh ]; then \
+		echo "Используйте: ./incremental_backup.sh -h HOSTNAME -t TYPE"; \
+	else \
+		echo "$(RED)Скрипт инкрементных бэкапов не найден$(NC)"; \
+	fi
+
+network-config: ## Настройка сети (требует настройки)
+	@echo "$(BLUE)Настройка сети...$(NC)"
+	@if [ -f ./network_config.sh ]; then \
+		echo "Используйте: ./network_config.sh -H HOSTNAME -i IP"; \
+	else \
+		echo "$(RED)Скрипт настройки сети не найден$(NC)"; \
+	fi
+
+system-check: ## Проверка системы (требует настройки)
+	@echo "$(BLUE)Проверка системы...$(NC)"
+	@if [ -f ./system_check.sh ]; then \
+		echo "Используйте: ./system_check.sh -h HOSTNAME"; \
+	else \
+		echo "$(RED)Скрипт проверки системы не найден$(NC)"; \
+	fi
+
+backup-automation: ## Автоматизация бэкапов (требует настройки)
+	@echo "$(BLUE)Автоматизация бэкапов...$(NC)"
+	@if [ -f ./backup_automation.sh ]; then \
+		echo "Используйте: ./backup_automation.sh --mode MODE -h HOSTNAME"; \
+	else \
+		echo "$(RED)Скрипт автоматизации не найден$(NC)"; \
+	fi
+
+status: ## Проверка статуса установки
+	@echo "$(BLUE)Проверка статуса установки...$(NC)"
+	@echo "Скрипты:"
+	@for script in $(SCRIPTS); do \
+		if [ -f $$script ]; then \
+			echo "  ✓ $$script"; \
+		else \
+			echo "  ✗ $$script (не найден)"; \
+		fi \
+	done
+	@echo ""
+	@echo "Конфигурационные файлы:"
+	@for config in $(CONFIGS); do \
+		if [ -f $$config ]; then \
+			echo "  ✓ $$config"; \
+		else \
+			echo "  ✗ $$config (не найден)"; \
+		fi \
+	done
+	@echo ""
+	@echo "Проверка исполняемости:"
+	@for script in $(SCRIPTS); do \
+		if [ -f $$script ] && [ -x $$script ]; then \
+			echo "  ✓ $$script (исполняемый)"; \
+		elif [ -f $$script ]; then \
+			echo "  ✗ $$script (не исполняемый)"; \
+		fi \
+	done
+
+install-dev: ## Установка для разработки
+	@echo "$(BLUE)Установка для разработки...$(NC)"
+	@make install
+	@echo "$(GREEN)Установка для разработки завершена$(NC)"
+	@echo "Все скрипты доступны в текущей директории и $(HOME)/.local/bin"
+
+# Дополнительные команды для разработчиков
+lint: ## Проверка кода с помощью shellcheck
+	@echo "$(BLUE)Проверка кода...$(NC)"
+	@if command -v shellcheck > /dev/null 2>&1; then \
+		for script in $(SCRIPTS); do \
+			if [ -f $$script ]; then \
+				echo "  Проверка $$script..."; \
+				shellcheck $$script || true; \
+			fi \
+		done \
+	else \
+		echo "$(YELLOW)shellcheck не установлен. Установите для проверки кода$(NC)"; \
+	fi
+
+format: ## Форматирование кода
+	@echo "$(BLUE)Форматирование кода...$(NC)"
+	@if command -v shfmt > /dev/null 2>&1; then \
+		for script in $(SCRIPTS); do \
+			if [ -f $$script ]; then \
+				echo "  Форматирование $$script..."; \
+				shfmt -w $$script; \
+			fi \
+		done \
+	else \
+		echo "$(YELLOW)shfmt не установлен. Установите для форматирования кода$(NC)"; \
+	fi
+
+# Команды по умолчанию
+.DEFAULT_GOAL := help 
