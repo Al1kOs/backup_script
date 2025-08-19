@@ -901,9 +901,9 @@ df -h
 - **Логи** - для диагностики проблем
 
 ### Контакты:
-- **Issues**: [GitHub Issues](https://github.com/username/backup_script/issues)
-- **Wiki**: [Документация](https://github.com/username/backup_script/wiki)
-- **Discussions**: [Обсуждения](https://github.com/username/backup_script/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Al1kOs/backup_script/issues)
+- **Wiki**: [Документация](https://github.com/Al1kOs/backup_script/wiki)
+- **Discussions**: [Обсуждения](https://github.com/Al1kOs/backup_script/discussions)
 
 ---
 
@@ -933,4 +933,5 @@ make setup-automation
 
 
 **Удачи в использовании системы бэкапа! 🚀** 
+
 
